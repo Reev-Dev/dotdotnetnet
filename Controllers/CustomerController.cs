@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PEMBEKALAN.Data;
@@ -11,141 +7,55 @@ namespace PEMBEKALAN.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    public class ProductController : ControllerBase
+    public class CustomersController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
 
-        public ProductController(ApplicationDbContext context)
+        public CustomersController(ApplicationDbContext context)
         {
             _context = context;
         }
 
-        // GET: api/Product
         [HttpGet]
-        public async Task<IActionResult> GetProducts()
+        public async Task<ActionResult<IEnumerable<Customer>>> GetAll()
         {
-            var products = await _context.Products.Include(p => p.Category).ToListAsync();
-
-            return Ok(products);
+            return await _context.Customers.ToListAsync();
         }
 
-        // GET: api/Product/ByCategory/5
-        [HttpGet("ByCategory/{categoryId}")]
-        public async Task<IActionResult> GetProductsByCategory(Guid categoryId)
+        [HttpGet("{id}")]
+        public async Task<ActionResult<Customer>> Get(Guid id)
         {
-            var products = await _context
-                .Products.Where(p => p.CategoryId == categoryId)
-                .Include(p => p.Category)
-                .ToListAsync();
-
-            return Ok(
-                new
-                {
-                    message = $"Products for category {categoryId} retrieved successfully.",
-                    data = products,
-                }
-            );
+            var customer = await _context.Customers.FindAsync(id);
+            return customer == null ? NotFound() : customer;
         }
 
-        public class ProductRequest
-        {
-            public required string Name { get; set; }
-            public decimal Price { get; set; }
-            public int Qty { get; set; }
-            public required string Description { get; set; }
-            public Guid CategoryId { get; set; }
-        }
-
-        // POST: api/Product
         [HttpPost]
-        public async Task<IActionResult> PostProduct([FromBody] ProductRequest request)
+        public async Task<ActionResult<Customer>> Create(Customer customer)
         {
-            // Validasi category exists
-            if (!await _context.ProductCategories.AnyAsync(c => c.Id == request.CategoryId))
-            {
-                return BadRequest(new { message = "Invalid Category ID." });
-            }
-
-            var product = new Product
-            {
-                Name = request.Name,
-                Price = request.Price,
-                Qty = request.Qty,
-                Description = request.Description,
-                CategoryId = request.CategoryId,
-            };
-
-            _context.Products.Add(product);
+            _context.Customers.Add(customer);
             await _context.SaveChangesAsync();
-
-            return CreatedAtAction(
-                nameof(GetProducts),
-                new { id = product.Id },
-                new { message = "Product created successfully.", data = product }
-            );
+            return CreatedAtAction(nameof(Get), new { id = customer.Id }, customer);
         }
 
-        // PUT: api/Product/{id}
         [HttpPut("{id}")]
-        public async Task<IActionResult> Update(Guid id, [FromBody] Product updatedProduct)
+        public async Task<IActionResult> Update(Guid id, Customer customer)
         {
-            if (!ModelState.IsValid)
-                return BadRequest(ModelState);
+            if (id != customer.Id) return BadRequest();
 
-            var existingProduct = await _context.Products.FindAsync(id);
-
-            if (existingProduct == null)
-            {
-                return NotFound(new { Message = $"Product with ID {id} not found." });
-            }
-
-            // Update hanya field yang diperlukan
-            existingProduct.Name = updatedProduct.Name;
-            existingProduct.Price = updatedProduct.Price;
-            existingProduct.Qty = updatedProduct.Qty;
-            existingProduct.Description = updatedProduct.Description;
-
-            // Jika ingin mengupdate categoryId juga
-            if (updatedProduct.CategoryId != Guid.Empty)
-            {
-                existingProduct.CategoryId = updatedProduct.CategoryId;
-            }
-
+            _context.Entry(customer).State = EntityState.Modified;
             await _context.SaveChangesAsync();
-
-            return Ok(
-                new
-                {
-                    Message = "Product successfully updated.",
-                    Data = new
-                    {
-                        existingProduct.Id,
-                        existingProduct.Name,
-                        existingProduct.Price,
-                        existingProduct.Qty,
-                        existingProduct.Description,
-                        existingProduct.CategoryId,
-                    },
-                }
-            );
+            return NoContent();
         }
 
-
-        // DELETE: api/Product/5
         [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteProduct(Guid id)
+        public async Task<IActionResult> Delete(Guid id)
         {
-            var product = await _context.Products.FindAsync(id);
-            if (product == null)
-            {
-                return NotFound(new { message = "Product not found." });
-            }
+            var customer = await _context.Customers.FindAsync(id);
+            if (customer == null) return NotFound();
 
-            _context.Products.Remove(product);
+            _context.Customers.Remove(customer);
             await _context.SaveChangesAsync();
-
-            return Ok(new { message = "Product deleted successfully." });
+            return NoContent();
         }
     }
 }
-
